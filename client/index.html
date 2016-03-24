@@ -1,0 +1,17 @@
+<h1>Aleksin NodeJS peli</h1>
+<canvas id="ctx" width="500" height="500" style="border:1px solid #000000;"></canvas>
+
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script>
+	var ctx = document.getElementById("ctx").getContext("2d");
+	ctx.font = '30px Arial';
+	
+	var socket = io(); //alustetaan yhteys clientin ja serverin välille
+	
+	socket.on('newPositions',function(data){ //vastaanotetaan viesti (newPositions) serveriltä
+		ctx.clearRect(0,0,500,500); //tyhjennetään canvas
+		for(var i = 0; i < data.length; i++)
+			ctx.fillText(data[i].number,data[i].x,data[i].y); //piirretään kaikki "pelaajat" uuteen sijaintiin		
+		/* ei yhtään laskentaa clientissä, serveri hoitaa kaiken! */
+	});
+</script>
