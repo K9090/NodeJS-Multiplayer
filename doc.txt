@@ -1,6 +1,6 @@
-** TUNTIKIRJANPITO **
+﻿** TUNTIKIRJANPITO **
 23.3 -- 3h -- asennus ja konffaus: node, socket, express, heroku
-24.3 -- 2h -- pelin perusrakenne kuntoon
+24.3 -- 3h -- pelin perusrakenne kuntoon
 
 
 ** KOMMUNIKAATIO **
