@@ -19,3 +19,7 @@ Toimii molempiin suuntiin: serveri lähettää viestin -> client kuuntelee TAI c
 Viestin mukana voidaan lähettää dataa ja esim. kutsua viestin perusteella jotain funktiota
 Toimii monella clientillä yhtäaikaa
 
+** LIIKKUMINEN **
+
+Serveri ei tiedä milloin client painaa esim. ylöspäin näppäintä -> clientin täytyy lähettää viesti serverille aina kun inputtia tapahtuu
+

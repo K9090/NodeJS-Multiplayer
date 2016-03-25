@@ -20,39 +20,80 @@ serv.listen(process.env.PORT || 2000); //kuunnellaan porttia 2000 localhostissa,
 console.log("Serveri startattu: kuuntelee porttia 2000.");
 /* Express loppuu */
 
-/* Socket.io alkaa */
-
-/* alustetaan Socket.io */
+/* Lista kaikista socketeista ja pelaajista */
 var SOCKET_LIST = {};
+var PLAYER_LIST = {};
+
+/* Pelaaja luokka */
+var Player = function(id){
+	var self = {
+		x:250, //alustetaan x ja y koordinaatit
+		y:250,
+		id:id,
+		number:"" + Math.floor(10 * Math.random()), //0-10 väliltä random numero, käytetään erottamaan "pelaajat" toisistaan
+		pressingRight:false,
+		pressingLeft:false,
+		pressingUp:false,
+		pressingDown:false,
+		maxSpd:10,
+	}
+	self.updatePosition = function(){
+		if(self.pressingRight)
+			self.x += self.maxSpd;
+		if(self.pressingLeft)
+			self.x -= self.maxSpd;
+		if(self.pressingUp)
+			self.y -= self.maxSpd;	
+		if(self.pressingDown)
+			self.y += self.maxSpd;	
+	}
+	return self;
+}
+
+/* Socket.io alkaa */
+/* alustetaan Socket.io */
 var io = require('socket.io')(serv,{});
 
 /* tätä funktiota kutsutaan kun uusi client ottaa yhteyden serveriin */
 io.sockets.on('connection', function(socket){
 	console.log('Client yhdisti.'); 
 	socket.id = Math.random(); //arvotaan clientille random id
-	socket.x = 0; //alustetaan x ja y koordinaatit
-	socket.y = 0;
-	socket.number = "" + Math.floor(10 * Math.random()); //0-10 väliltä random numero, käytetään erottamaan "pelaajat" toisistaan
 	SOCKET_LIST[socket.id] = socket; //lisätään arvottu id socket listaan
+	
+	var player = Player(socket.id); //luodaan uusi pelaaja, annetaan parametrina arvottu id
+	PLAYER_LIST[socket.id] = player; //lisätään pelaaja listaan
 	
 	/* tätä funktiota kutsutaan kun client katkaisee yhteyden */
 	/* clientin ei tarvitse erikseen lähettää (emit) disconnect viestiä, vaan se tehdään automaattisesti */
 	socket.on('disconnect',function(){
-		delete SOCKET_LIST[socket.id];
+		delete SOCKET_LIST[socket.id]; //poistetaan disconnectannut clientti socket ja player listoista
+		delete PLAYER_LIST[socket.id];
+	});
+	
+	/* tätä funktiota kutsutaan kun client lähettää viestin näppäimen painamisesta */
+	/* viestin data-osassa tulee mukana painetun näppäimen Id, sekä tieto onko näppäin painettu alas vai ylös */
+	socket.on('keyPress',function(data){
+		if(data.inputId === 'left')
+			player.pressingLeft = data.state;
+		else if(data.inputId === 'right')
+			player.pressingRight = data.state;
+		else if(data.inputId === 'up')
+			player.pressingUp = data.state;
+		else if(data.inputId === 'down')
+			player.pressingDown = data.state;
 	});
 });
 
 /* loopataan kaikki socketit läpi socket listasta (kutsutaan 25fps ~ 40ms välein) */
 setInterval(function(){
 	var pack = []; //paketti, joka lähetetään kaikille yhdistäneille clienteille, pitää sisällään tiedot KAIKISTA clienteistä
-	for(var i in SOCKET_LIST){
-		var socket = SOCKET_LIST[i];
-		socket.x++; //muutetaan kaikkien sijaintia
-		socket.y++;
+	for(var i in PLAYER_LIST){
+		var player = PLAYER_LIST[i];
+		player.updatePosition();
 		pack.push({ //lisätään kaikkien sijainti pakettiin
-			x:socket.x,
-			y:socket.y,
-			number:socket.number
+			x:player.x,
+			y:player.y,
+			number:player.number
 		});
 	}
 	for(var i in SOCKET_LIST){
