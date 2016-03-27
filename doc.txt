@@ -1,6 +1,7 @@
 ﻿** TUNTIKIRJANPITO **
-23.3 -- 3h -- asennus ja konffaus: node, socket, express, heroku
-24.3 -- 3h -- pelin perusrakenne kuntoon
+23.3 -- 3h -- asennus ja konffaus: nodejs, socket.io, expressjs, heroku
+24.3 -- 5h -- pelin perusrakenne kuntoon, nodejs + socket.io + expressjs opettelua
+27.3 -- 3h -- pelin rakenne modulaariseksi OOP-menetelmillä
 
 
 ** KOMMUNIKAATIO **

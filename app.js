@@ -16,62 +16,82 @@ app.use('/client',express.static(__dirname + '/client')); //pyyntö alkaa /clien
 /* client voi pyytää tiedostoja vain kahdesta yllä olevasta paikasta */
 /* eli jos pyydetään esim. /server/secureFile.js -> ei tee yhtikäs mitään */
 
-serv.listen(process.env.PORT || 2000); //kuunnellaan porttia 2000 localhostissa, process.env.PORT == Heroku portti
+serv.listen(process.env.PORT || 2000); //kuunnellaan porttia 2000 localhostissa tai Herokun porttia (process.env.PORT)
 console.log("Serveri startattu: kuuntelee porttia 2000.");
 /* Express loppuu */
 
-/* Lista kaikista socketeista ja pelaajista */
-var SOCKET_LIST = {};
-var PLAYER_LIST = {};
+
+/* Luokat alkaa */
+/* Entity luokka */
+var Entity = function(){
+	/* objekti (self), joka pitää sisällään attribuutit */
+	var self = {
+		x:250,
+		y:250,
+		spdX:0,
+		spdY:0,
+		id:"",
+	}
+	/* objektin metodit */
+	self.update = function(){
+		self.updatePosition();
+	}
+	self.updatePosition = function(){
+		self.x += self.spdX;
+		self.y += self.spdY;
+	}
+	return self; //konstruktori palauttaa objektin (self)
+}
 
 /* Pelaaja luokka */
 var Player = function(id){
-	var self = {
-		x:250, //alustetaan x ja y koordinaatit
-		y:250,
-		id:id,
-		number:"" + Math.floor(10 * Math.random()), //0-10 väliltä random numero, käytetään erottamaan "pelaajat" toisistaan
-		pressingRight:false,
-		pressingLeft:false,
-		pressingUp:false,
-		pressingDown:false,
-		maxSpd:10,
+	var self = Entity(); //luokka peritään Entitystä
+	/* lisätään Entityn attribuuttien lisäksi pelaajalle omia attribuutteja */
+	self.id = id;
+	self.number = "" + Math.floor(10 * Math.random());
+	self.pressingRight = false;
+	self.pressingLeft = false;
+	self.pressingUp = false;
+	self.pressingDown = false;
+	self.maxSpd = 10;
+	
+	var super_update = self.update; //otetaan alkuperäinen Entityn update-funktio talteen muuttujaan (super_update)
+	self.update = function(){ //ylikirjoitetaan update-funktio
+		self.updateSpd(); //päivitetään pelaajan nopeus
+		super_update(); //kutsutaan alkuperäistä Entityn update-funktiota, joka päivittää sijainnin nopeuden perusteella
 	}
-	self.updatePosition = function(){
+	
+	/* muutetaan pelaajan nopeutta sen mukaan, mitä näppäintä painetaan */
+	self.updateSpd = function(){
+		/* x-suunnassa */
 		if(self.pressingRight)
-			self.x += self.maxSpd;
-		if(self.pressingLeft)
-			self.x -= self.maxSpd;
-		if(self.pressingUp)
-			self.y -= self.maxSpd;	
-		if(self.pressingDown)
-			self.y += self.maxSpd;	
+			self.spdX = self.maxSpd;
+		else if(self.pressingLeft)
+			self.spdX = -self.maxSpd;
+		else
+			self.spdX = 0;
+		/* y-suunnassa */
+		if (self.pressingUp)
+			self.spdY = -self.maxSpd;
+		else if (self.pressingDown)
+			self.spdY = self.maxSpd;
+		else 
+			self.spdY = 0;
 	}
+	Player.list[id] = self; //lisätään pelaaja listaan luonnin yhteydessä
 	return self;
 }
 
-/* Socket.io alkaa */
-/* alustetaan Socket.io */
-var io = require('socket.io')(serv,{});
+/* lista kaikista pelaajista, HUOM! STAATTINEN (vain yksi lista pelaajista on olemassa) */
+Player.list = {};
 
-/* tätä funktiota kutsutaan kun uusi client ottaa yhteyden serveriin */
-io.sockets.on('connection', function(socket){
-	console.log('Client yhdisti.'); 
-	socket.id = Math.random(); //arvotaan clientille random id
-	SOCKET_LIST[socket.id] = socket; //lisätään arvottu id socket listaan
+/* staattisia Pelaaja-luokan funktioita */
+/* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
+Player.onConnect = function(socket){
+	var player = Player(socket.id); //luodaan uusi pelaaja
 	
-	var player = Player(socket.id); //luodaan uusi pelaaja, annetaan parametrina arvottu id
-	PLAYER_LIST[socket.id] = player; //lisätään pelaaja listaan
-	
-	/* tätä funktiota kutsutaan kun client katkaisee yhteyden */
-	/* clientin ei tarvitse erikseen lähettää (emit) disconnect viestiä, vaan se tehdään automaattisesti */
-	socket.on('disconnect',function(){
-		delete SOCKET_LIST[socket.id]; //poistetaan disconnectannut clientti socket ja player listoista
-		delete PLAYER_LIST[socket.id];
-	});
-	
-	/* tätä funktiota kutsutaan kun client lähettää viestin näppäimen painamisesta */
-	/* viestin data-osassa tulee mukana painetun näppäimen Id, sekä tieto onko näppäin painettu alas vai ylös */
+	/* tätä funktiota kutsutaan, kun client lähettää viestin näppäimen painamisesta */
+	/* viestin data-osassa tulee mukana painetun näppäimen id, sekä tieto siitä, onko näppäin painettu alas vai ylös */
 	socket.on('keyPress',function(data){
 		if(data.inputId === 'left')
 			player.pressingLeft = data.state;
@@ -82,27 +102,59 @@ io.sockets.on('connection', function(socket){
 		else if(data.inputId === 'down')
 			player.pressingDown = data.state;
 	});
-});
+}
 
-/* loopataan kaikki socketit läpi socket listasta (kutsutaan 25fps ~ 40ms välein) */
-setInterval(function(){
-	var pack = []; //paketti, joka lähetetään kaikille yhdistäneille clienteille, pitää sisällään tiedot KAIKISTA clienteistä
-	for(var i in PLAYER_LIST){
-		var player = PLAYER_LIST[i];
-		player.updatePosition();
-		pack.push({ //lisätään kaikkien sijainti pakettiin
+/* tätä funktiota kutsutaan, kun client katkaisee yhteyden */
+Player.onDisconnect = function(socket){
+	delete Player.list[socket.id]; //poistetaan pelaaja listalta
+}
+
+/* update funktio, kutsutaan ~18ms välein */
+Player.update = function(){
+	var pack = []; //paketti, joka pitää sisällään tiedot kaikista pelaajista
+	for(var i in Player.list){
+		var player = Player.list[i];
+		player.update(); //päivitetään pelaajan sijainti
+		pack.push({ //lisätään sijainti pakettiin
 			x:player.x,
 			y:player.y,
 			number:player.number
 		});
 	}
+	return pack;
+}
+/* Luokat loppuu */
+
+
+/* Socket.io alkaa */
+/* alustetaan Socket.io */
+var io = require('socket.io')(serv,{});
+
+/* Lista kaikista socketeista */
+var SOCKET_LIST = {};
+
+/* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
+io.sockets.on('connection', function(socket){
+	console.log('Client yhdisti.'); 
+	socket.id = Math.random(); //arvotaan clientille random id
+	SOCKET_LIST[socket.id] = socket; //lisätään arvottu id socket-listaan
+	Player.onConnect(socket); //kutsutaan Player-luokan funktiota (onConnect), joka luo uuden pelaajan
+	
+	/* tätä funktiota kutsutaan, kun client katkaisee yhteyden */
+	/* clientin ei tarvitse erikseen lähettää (emit) disconnect-viestiä, vaan se tehdään automaattisesti */
+	socket.on('disconnect',function(){
+		delete SOCKET_LIST[socket.id]; //poistetaan disconnectannut clientti listoilta
+		Player.onDisconnect(socket);
+	});
+});
+
+/* loopataan läpi kaikki clientit (kutsutaan 60fps ~ 18ms välein) */
+setInterval(function(){
+	var pack = Player.update(); //päivitetään kaikkien pelaajien sijainnit pakettiin
+	
 	for(var i in SOCKET_LIST){
 		var socket = SOCKET_LIST[i];
-		socket.emit('newPositions',pack); //lähetetään viestinä paketti clienteille uusista sijainneista
-	}
-	
-
-	
-},1000/25);
-
+		socket.emit('newPositions',pack); //lähetetään viestinä paketti kaikille clienteille uusista sijainneista
+	}	
+},1000/60);
 /* Socket.io loppuu */
