@@ -53,12 +53,24 @@ var Player = function(id){
 	self.pressingLeft = false;
 	self.pressingUp = false;
 	self.pressingDown = false;
+	self.pressingAttack = false;
+	self.mouseAngle = 0;
 	self.maxSpd = 10;
 	
 	var super_update = self.update; //otetaan alkuperäinen Entityn update-funktio talteen muuttujaan (super_update)
 	self.update = function(){ //ylikirjoitetaan update-funktio
 		self.updateSpd(); //päivitetään pelaajan nopeus
 		super_update(); //kutsutaan alkuperäistä Entityn update-funktiota, joka päivittää sijainnin nopeuden perusteella
+		
+		/* ammutaan bulletteja, kun hiiren painike on alaalla */
+		if(self.pressingAttack){
+			self.shootBullet(self.mouseAngle);
+		}
+		self.shootBullet = function(angle){
+			var b = Bullet(angle);
+			b.x = self.x; //bullet luodaan pelaajan sijaintiin
+			b.y = self.y;
+		}
 	}
 	
 	/* muutetaan pelaajan nopeutta sen mukaan, mitä näppäintä painetaan */
@@ -90,9 +102,10 @@ Player.list = {};
 Player.onConnect = function(socket){
 	var player = Player(socket.id); //luodaan uusi pelaaja
 	
-	/* tätä funktiota kutsutaan, kun client lähettää viestin näppäimen painamisesta */
-	/* viestin data-osassa tulee mukana painetun näppäimen id, sekä tieto siitä, onko näppäin painettu alas vai ylös */
+	/* tätä funktiota kutsutaan, kun client lähettää viestin inputista */
 	socket.on('keyPress',function(data){
+		/* näppäimistön näppäintä painetaan */
+		/* viestin data-osassa tulee mukana painetun näppäimen id, sekä tieto siitä, onko näppäin painettu alas vai ylös */
 		if(data.inputId === 'left')
 			player.pressingLeft = data.state;
 		else if(data.inputId === 'right')
@@ -101,6 +114,13 @@ Player.onConnect = function(socket){
 			player.pressingUp = data.state;
 		else if(data.inputId === 'down')
 			player.pressingDown = data.state;
+		
+		/* hiiren painiketta painetaan, datana tulee tieto siitä, onko painettu alas vai ylös */
+		else if(data.inputId === 'attack')
+			player.pressingAttack = data.state;
+		/* hiirtä liikutetaan, datana tulee hiiren kulma */
+		else if(data.inputId === 'mouseAngle')
+			player.mouseAngle = data.state;
 	});
 }
 
@@ -123,6 +143,39 @@ Player.update = function(){
 	}
 	return pack;
 }
+
+/* Bullet luokka */
+var Bullet = function(angle){
+	var self = Entity();
+	self.id = Math.random();
+	self.spdX = Math.cos(angle/180*Math.PI) * 10;
+	self.spdY = Math.sin(angle/180*Math.PI) * 10;
+	
+	self.timer = 0;
+	self.toRemove = false;
+	var super_update = self.update;
+	self.update = function(){
+		if(self.timer++ > 100)
+			self.toRemove = true;
+		super_update();
+	}
+	Bullet.list[self.id] = self;
+	return self;
+}
+Bullet.list = {};
+
+Bullet.update = function(){
+	var pack = [];
+	for(var i in Bullet.list){
+		var bullet = Bullet.list[i];
+		bullet.update();
+		pack.push({
+			x:bullet.x,
+			y:bullet.y,
+		});
+	}
+	return pack;
+}
 /* Luokat loppuu */
 
 
@@ -132,6 +185,9 @@ var io = require('socket.io')(serv,{});
 
 /* Lista kaikista socketeista */
 var SOCKET_LIST = {};
+
+/* Debug-mode, sallii komentojen lähettämisen */
+var DEBUG = true; //vaihdetaan falseksi release-versiossa!
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 io.sockets.on('connection', function(socket){
@@ -146,11 +202,35 @@ io.sockets.on('connection', function(socket){
 		delete SOCKET_LIST[socket.id]; //poistetaan disconnectannut clientti listoilta
 		Player.onDisconnect(socket);
 	});
+	
+	/* tätä funktiota kutsutaan, kun client lähettää viestin chattiin */
+	socket.on('sendMsgToServer',function(data){
+		var playerName = ("" + socket.id).slice(2,7);
+		for(var i in SOCKET_LIST){
+			SOCKET_LIST[i].emit('addToChat',playerName + ': ' + data);
+		}
+	});
+	
+	/* tätä funktiota kutsutaan, kun client lähettää komennon (alkaa kauttamerkillä) */
+	socket.on('evalServer',function(data){
+		if(!DEBUG) //debug-mode pois päältä, ei tehdä mitään
+			return;
+		try {
+			var res = eval(data);
+		} catch (e) {
+			res = e.message;
+		}
+		socket.emit('evalAnswer',res);
+	});
+	
 });
 
 /* loopataan läpi kaikki clientit (kutsutaan 60fps ~ 18ms välein) */
 setInterval(function(){
-	var pack = Player.update(); //päivitetään kaikkien pelaajien sijainnit pakettiin
+	var pack = {
+		player:Player.update(), //päivitetään kaikkien pelaajien sijainnit pakettiin
+		bullet:Bullet.update(), //samoin bulletit
+	}
 	
 	for(var i in SOCKET_LIST){
 		var socket = SOCKET_LIST[i];

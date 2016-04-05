@@ -2,7 +2,8 @@
 23.3 -- 3h -- asennus ja konffaus: nodejs, socket.io, expressjs, heroku
 24.3 -- 5h -- pelin perusrakenne kuntoon, nodejs + socket.io + expressjs opettelua
 27.3 -- 3h -- pelin rakenne modulaariseksi OOP-menetelmillä
-
+27.3 -- 3h -- bulletit, chatti, serverin debuggaus
+5.4 -- 1h -- bullettien ampuminen hiiren sijaintiin
 
 ** KOMMUNIKAATIO **
 
