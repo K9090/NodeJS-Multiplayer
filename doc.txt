@@ -3,7 +3,7 @@
 24.3 -- 5h -- pelin perusrakenne kuntoon, nodejs + socket.io + expressjs opettelua
 27.3 -- 3h -- pelin rakenne modulaariseksi OOP-menetelmillä
 27.3 -- 3h -- bulletit, chatti, serverin debuggaus
-5.4 -- 1h -- bullettien ampuminen hiiren sijaintiin
+5.4 -- 2h -- bullettien ampuminen hiiren sijaintiin, törmäykset
 
 ** KOMMUNIKAATIO **
 

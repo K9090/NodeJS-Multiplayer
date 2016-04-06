@@ -40,6 +40,9 @@ var Entity = function(){
 		self.x += self.spdX;
 		self.y += self.spdY;
 	}
+	self.getDistance = function(pt){
+		return Math.sqrt(Math.pow(self.x-pt.x,2) + Math.pow(self.y-pt.y,2)); //laskee etäisyyden Entityn ja parametrina annetun pisteen välillä
+	}
 	return self; //konstruktori palauttaa objektin (self)
 }
 
@@ -67,7 +70,7 @@ var Player = function(id){
 			self.shootBullet(self.mouseAngle);
 		}
 		self.shootBullet = function(angle){
-			var b = Bullet(angle);
+			var b = Bullet(self.id,angle);
 			b.x = self.x; //bullet luodaan pelaajan sijaintiin
 			b.y = self.y;
 		}
@@ -97,7 +100,8 @@ var Player = function(id){
 /* lista kaikista pelaajista, HUOM! STAATTINEN (vain yksi lista pelaajista on olemassa) */
 Player.list = {};
 
-/* staattisia Pelaaja-luokan funktioita */
+/* kaikki alla olevat funktiot ovat staattisia Pelaaja-luokan funktioita */
+
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 Player.onConnect = function(socket){
 	var player = Player(socket.id); //luodaan uusi pelaaja
@@ -129,7 +133,7 @@ Player.onDisconnect = function(socket){
 	delete Player.list[socket.id]; //poistetaan pelaaja listalta
 }
 
-/* update funktio, kutsutaan ~18ms välein */
+/* update funktio, joka päivittää kaikki pelaajat, kutsutaan 60fps ~ 18ms välein */
 Player.update = function(){
 	var pack = []; //paketti, joka pitää sisällään tiedot kaikista pelaajista
 	for(var i in Player.list){
@@ -145,34 +149,52 @@ Player.update = function(){
 }
 
 /* Bullet luokka */
-var Bullet = function(angle){
+var Bullet = function(parent,angle){
 	var self = Entity();
 	self.id = Math.random();
 	self.spdX = Math.cos(angle/180*Math.PI) * 10;
 	self.spdY = Math.sin(angle/180*Math.PI) * 10;
-	
+	self.parent = parent; //bulletin omistaja, eli kuka pelaaja ampui bulletin
 	self.timer = 0;
 	self.toRemove = false;
-	var super_update = self.update;
+
+	var super_update = self.update; //samat kikkailut, mitkä tehtiin Pelaaja-luokassa
 	self.update = function(){
 		if(self.timer++ > 100)
-			self.toRemove = true;
+			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua
 		super_update();
+
+		/* törmäykset */
+		/* loopataan läpi kaikki pelaajat ja tarkistetaan, onko etäisyys alle 32 && ettei kyseinen pelaaja omista bullettia */
+		/* jos nämä ehdot toteutuvat -> törmäys */
+		for (var i in Player.list) {
+			var p = Player.list[i];
+			if(self.getDistance(p) < 32 && self.parent !== p.id){ 
+				//tähän tulee joskus törmäykseen liittyvää toiminnallisuuta, esim. vähennetään terveyspisteitä pelaajalta (hp--;)
+				self.toRemove = true;
+			}
+		}
 	}
-	Bullet.list[self.id] = self;
+	Bullet.list[self.id] = self; //lisätään bulletti listaan luonnin yhteydessä
 	return self;
 }
+
+/* lista kaikista bulleteista, HUOM! STAATTINEN (vain yksi lista bulleteista on olemassa) */
 Bullet.list = {};
 
+/* staattinen update funktio, joka päivittää kaikki bulletit, kutsutaan 60fps ~ 18ms välein (samanlainen kuin Pelaaja-luokalla) */
 Bullet.update = function(){
 	var pack = [];
 	for(var i in Bullet.list){
 		var bullet = Bullet.list[i];
 		bullet.update();
-		pack.push({
-			x:bullet.x,
-			y:bullet.y,
-		});
+		if(bullet.toRemove)
+			delete Bullet.list[i]; //poistetaan bullet jos toRemove-flagi on true
+		else
+			pack.push({
+				x:bullet.x,
+				y:bullet.y,
+			});
 	}
 	return pack;
 }
