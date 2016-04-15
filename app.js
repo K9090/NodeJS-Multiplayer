@@ -1,4 +1,4 @@
-/* Express alkaa */
+﻿/* Express alkaa */
 /* ainut paikka jossa Expressiä käytetään koko projektissa */
 /* peli vaatii vain yhden webbi-sivun, joten enempää Expressiä ei tarvita */
 
@@ -97,10 +97,10 @@ var Player = function(id){
 	return self;
 }
 
-/* lista kaikista pelaajista, HUOM! STAATTINEN (vain yksi lista pelaajista on olemassa) */
+/* lista kaikista pelaajista, HUOM! STAATTINEN (vain yksi lista pelaajista on olemassa, yhteinen kaikille Pelaaja-luokan olioille) */
 Player.list = {};
 
-/* kaikki alla olevat funktiot ovat staattisia Pelaaja-luokan funktioita */
+/* kaikki loput funktiot ovat staattisia Pelaaja-luokan funktioita (= yhteisiä kaikille Pelaaja-luokan olioille) */
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 Player.onConnect = function(socket){
@@ -158,7 +158,7 @@ var Bullet = function(parent,angle){
 	self.timer = 0;
 	self.toRemove = false;
 
-	var super_update = self.update; //samat kikkailut, mitkä tehtiin Pelaaja-luokassa
+	var super_update = self.update; //samat update-kikkailut, mitkä tehtiin Pelaaja-luokassa
 	self.update = function(){
 		if(self.timer++ > 100)
 			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua
@@ -179,7 +179,7 @@ var Bullet = function(parent,angle){
 	return self;
 }
 
-/* lista kaikista bulleteista, HUOM! STAATTINEN (vain yksi lista bulleteista on olemassa) */
+/* lista kaikista bulleteista, HUOM! STAATTINEN (vain yksi lista bulleteista on olemassa, yhteinen kaikille Bullet-luokan olioille) */
 Bullet.list = {};
 
 /* staattinen update funktio, joka päivittää kaikki bulletit, kutsutaan 60fps ~ 18ms välein (samanlainen kuin Pelaaja-luokalla) */
@@ -205,18 +205,72 @@ Bullet.update = function(){
 /* alustetaan Socket.io */
 var io = require('socket.io')(serv,{});
 
-/* Lista kaikista socketeista */
+/* lista kaikista socketeista */
 var SOCKET_LIST = {};
 
-/* Debug-mode, sallii komentojen lähettämisen */
+/* debug-mode, sallii komentojen lähettämisen */
 var DEBUG = true; //vaihdetaan falseksi release-versiossa!
+
+/* objekti kaikista valideista käyttäjä+salasana -pareista*/
+var USERS = {
+	//username:password
+	"root":"root66",
+	"testi":"sala",
+	"demo":"demo",
+}
+
+/* simuloidaan oikean tietokannan viivettä setTimeouteilla -> täytyy käyttää callbackejä */
+var isValidPassword = function(data,cb){
+	setTimeout(function(){
+		cb(USERS[data.username] === data.password); //tarkistetaan, löytyykö USERS-objektista datana tullutta käyttäjä+salasana -paria
+	},10);
+}
+var isUsernameTaken = function(data,cb){
+	setTimeout(function(){
+		cb(USERS[data.username]); //palauttaa true, jos käyttäjä löytyy jo
+	},10);
+}
+var addUser = function(data,cb){
+	setTimeout(function(){
+		USERS[data.username] = data.password; //lisätään uusi käyttäjä+salasana -pari
+		cb();
+	},10);
+}
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 io.sockets.on('connection', function(socket){
 	console.log('Client yhdisti.'); 
 	socket.id = Math.random(); //arvotaan clientille random id
 	SOCKET_LIST[socket.id] = socket; //lisätään arvottu id socket-listaan
-	Player.onConnect(socket); //kutsutaan Player-luokan funktiota (onConnect), joka luo uuden pelaajan
+	
+	/* tätä funktiota kutsutaan, kun client lähettää viestin kirjautumisesta */
+	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
+	/* lisätietoja osoitteesta: http://callbackhell.com/ */
+	socket.on('signIn',function(data){
+		isValidPassword(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan ovatko ne oikein
+			if(res){
+				Player.onConnect(socket); //kutsutaan Player-luokan funktiota (onConnect), joka luo uuden pelaajan
+				socket.emit('signInResponse',{success:true}); //lähetetään viesti clientille onnistuneesta kirjautumisesta
+			} else {
+				socket.emit('signInResponse',{success:false});
+			} 
+		});
+	});
+	
+	/* tätä funktiota kutsutaan, kun client lähettää viestin rekisteröitymisestä */
+	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
+	/* lisätietoja osoitteesta: http://callbackhell.com/ */
+	socket.on('signUp',function(data){
+		isUsernameTaken(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan löytyykö käyttäjä jo
+			if(res){
+				socket.emit('signUpResponse',{success:false}); //käyttäjä löytyi jo -> epäonnistui
+			} else {
+				addUser(data, function(){ //käyttäjä vapaana -> lisätään
+					socket.emit('signUpResponse',{success:true});
+				});
+			}
+		});	
+	});
 	
 	/* tätä funktiota kutsutaan, kun client katkaisee yhteyden */
 	/* clientin ei tarvitse erikseen lähettää (emit) disconnect-viestiä, vaan se tehdään automaattisesti */
