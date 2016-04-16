@@ -133,7 +133,7 @@ Player.onDisconnect = function(socket){
 	delete Player.list[socket.id]; //poistetaan pelaaja listalta
 }
 
-/* update funktio, joka päivittää kaikki pelaajat, kutsutaan 60fps ~ 18ms välein */
+/* update funktio, joka päivittää kaikki pelaajat */
 Player.update = function(){
 	var pack = []; //paketti, joka pitää sisällään tiedot kaikista pelaajista
 	for(var i in Player.list){
@@ -182,7 +182,7 @@ var Bullet = function(parent,angle){
 /* lista kaikista bulleteista, HUOM! STAATTINEN (vain yksi lista bulleteista on olemassa, yhteinen kaikille Bullet-luokan olioille) */
 Bullet.list = {};
 
-/* staattinen update funktio, joka päivittää kaikki bulletit, kutsutaan 60fps ~ 18ms välein (samanlainen kuin Pelaaja-luokalla) */
+/* staattinen update funktio, joka päivittää kaikki bulletit (samanlainen kuin Pelaaja-luokalla) */
 Bullet.update = function(){
 	var pack = [];
 	for(var i in Bullet.list){
@@ -211,7 +211,7 @@ var SOCKET_LIST = {};
 /* debug-mode, sallii komentojen lähettämisen */
 var DEBUG = true; //vaihdetaan falseksi release-versiossa!
 
-/* objekti kaikista valideista käyttäjä+salasana -pareista*/
+/* objekti kaikista valideista käyttäjä+salasana -pareista */
 var USERS = {
 	//username:password
 	"root":"root66",
@@ -292,7 +292,7 @@ io.sockets.on('connection', function(socket){
 		if(!DEBUG) //debug-mode pois päältä, ei tehdä mitään
 			return;
 		try {
-			var res = eval(data);
+			var res = eval(data); //debugataan
 		} catch (e) {
 			res = e.message;
 		}
@@ -301,7 +301,7 @@ io.sockets.on('connection', function(socket){
 	
 });
 
-/* loopataan läpi kaikki clientit (kutsutaan 60fps ~ 18ms välein) */
+/* loopataan läpi kaikki clientit (25fps) */
 setInterval(function(){
 	var pack = {
 		player:Player.update(), //päivitetään kaikkien pelaajien sijainnit pakettiin
@@ -312,5 +312,5 @@ setInterval(function(){
 		var socket = SOCKET_LIST[i];
 		socket.emit('newPositions',pack); //lähetetään viestinä paketti kaikille clienteille uusista sijainneista
 	}	
-},1000/60);
+},1000/25);
 /* Socket.io loppuu */
