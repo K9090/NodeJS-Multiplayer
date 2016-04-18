@@ -66,6 +66,7 @@ var Player = function(id, username){
 	self.maxSpd = 10;
 	self.hp = 400;
 	self.isDead = false;
+	self.score = 0;
 	
 	var super_update = self.update; //otetaan alkuperäinen Entityn update-funktio talteen muuttujaan (super_update)
 	self.update = function(){ //ylikirjoitetaan update-funktio
@@ -131,6 +132,11 @@ var Player = function(id, username){
 		self.isDead = false;
 	}
 	
+	/* lisätään scorea tapoista */
+	self.upScore = function(){
+		self.score = self.score + 100;
+	}
+	
 	Player.list[id] = self; //lisätään pelaaja listaan luonnin yhteydessä
 	return self;
 }
@@ -182,6 +188,7 @@ Player.update = function(){
 			y:player.y,
 			username:player.username,
 			isdead:player.isDead,
+			score:player.score
 		});
 	}
 	return pack;
@@ -203,13 +210,20 @@ var Bullet = function(parent,angle){
 			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua (tai sen osuessa)
 		super_update();
 
-		/* törmäykset */
-		/* loopataan läpi kaikki pelaajat ja tarkistetaan, onko etäisyys alle 32 && ettei kyseinen pelaaja omista bullettia */
+		/* VAROITUS: SPAGETTIKOODIA ALLA, KULKU OMALLA VASTUULLA!*/
+		/* loopataan läpi kaikki pelaajat ja tarkistetaan, onko etäisyys alle 32 & ettei kyseinen pelaaja omista bullettia */
 		/* jos nämä ehdot toteutuvat -> törmäys */
-		for (var i in Player.list) {
+		for (var i in Player.list){
 			var p = Player.list[i];
 			if(self.getDistance(p) < 32 && self.parent !== p.id){ 
-				p.hp = p.hp - 50; // vähennetään pelaajalta hp:ta
+				p.hp = p.hp - 50; //vähennetään pelaajalta hp:ta
+					if(p.hp == 0){ //tappava osuma, annetaan ampujalle pisteitä
+						for (var j in Player.list){ //etsitään listasta bulletin omistaja (=ampuja) ja lisätään tälle scorea
+							var b = Player.list[j];
+							if(self.parent === b.id)
+								b.upScore();
+						}
+					}
 				self.toRemove = true;
 			}
 		}
@@ -284,7 +298,6 @@ io.sockets.on('connection', function(socket){
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin kirjautumisesta */
 	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
-	/* lisätietoja osoitteesta: http://callbackhell.com/ */
 	socket.on('signIn',function(data){
 		isValidPassword(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan ovatko ne oikein
 			if(res){
@@ -298,7 +311,6 @@ io.sockets.on('connection', function(socket){
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin rekisteröitymisestä */
 	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
-	/* lisätietoja osoitteesta: http://callbackhell.com/ */
 	socket.on('signUp',function(data){
 		isUsernameTaken(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan löytyykö käyttäjä jo
 			if(res){
@@ -339,7 +351,7 @@ io.sockets.on('connection', function(socket){
 	
 });
 
-/* loopataan läpi kaikki clientit (25fps) */
+/* loopataan läpi kaikki clientit (30fps) */
 setInterval(function(){
 	var pack = {
 		player:Player.update(), //päivitetään kaikkien pelaajien sijainnit pakettiin
@@ -350,5 +362,5 @@ setInterval(function(){
 		var socket = SOCKET_LIST[i];
 		socket.emit('newPositions',pack); //lähetetään viestinä paketti kaikille clienteille uusista sijainneista
 	}	
-},1000/25);
+},1000/30);
 /* Socket.io loppuu */

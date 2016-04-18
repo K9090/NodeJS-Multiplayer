@@ -70,8 +70,7 @@
 		ctx.clearRect(0,0,500,500); //tyhjennetään canvas
 		for(var i = 0; i < data.player.length; i++)
 		{
-			if(data.player[i].username == myName) {
-				ctx.fillStyle="#00cc00"; //jos kyseessä on oma pelaaja, piiretään vihreä neliö
+			if(data.player[i].username == myName){ //oma pelaaja
 				if(data.player[i].isdead) //jos oma pelaaja on kuollut, näytetään ilmoitus siitä
 				{
 					ctx.fillStyle = "red";
@@ -81,12 +80,16 @@
 					ctx.font = "15px Verdana";
 					ctx.fillText("Respawning in 5 seconds", 160, 280);
 				}
+				ctx.fillStyle = "black";
+				ctx.font = "15px Arial";
+				ctx.fillText("Score: " + data.player[i].score, 15, 20); //näytetään oma score
+				ctx.fillStyle="#00cc00"; //piiretään oma pelaaja vihreänä neliönä
 			}
 			else
-				ctx.fillStyle="#ff0000"; //vihollis pelaaja, piirretään punainen neliö
+				ctx.fillStyle="#ff0000"; //vihollis pelaaja, piirretään punaisena neliönä
 			ctx.fillRect(data.player[i].x-10,data.player[i].y-10,20,20); //piirretään kaikki pelaajat uusiin sijainteihin
 			ctx.fillStyle="#000000";
-			ctx.font="15px Georgia";
+			ctx.font="15px Arial";
 			ctx.fillText(data.player[i].username,data.player[i].x-15,data.player[i].y-15); //pelaajien nimet
 		}
 		for(var i = 0; i < data.bullet.length; i++)
@@ -149,10 +152,10 @@
 	}
 	
 	/* lähetetään viesti kun hiirtä liikutetaan */
-	/* viestin datana hiiren kulma, joka lasketaan ruudun keskipisteen suhteen */
+	/* viestin datana hiiren kulma, joka lasketaan ruudun keskipisteen suhteen (huono, ei toimi kentän reunoilla oikein!) */
 	document.onmousemove = function(event){
 		var x = -250 + event.clientX - 8;
-		var y = -250 + event.clientY; - 8;
+		var y = -250 + event.clientY - 8;
 		var angle = Math.atan2(y,x) / Math.PI * 180;
 		socket.emit('keyPress',{inputId:'mouseAngle',state:angle});
 	}
