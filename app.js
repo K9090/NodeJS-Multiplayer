@@ -47,11 +47,11 @@ var Entity = function(){
 }
 
 /* Pelaaja luokka */
-var Player = function(id){
+var Player = function(id, username){
 	var self = Entity(); //luokka peritään Entitystä
 	/* lisätään Entityn attribuuttien lisäksi pelaajalle omia attribuutteja */
 	self.id = id;
-	self.number = "" + Math.floor(10 * Math.random());
+	self.username = username;
 	self.pressingRight = false;
 	self.pressingLeft = false;
 	self.pressingUp = false;
@@ -103,8 +103,8 @@ Player.list = {};
 /* kaikki loput funktiot ovat staattisia Pelaaja-luokan funktioita (= yhteisiä kaikille Pelaaja-luokan olioille) */
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
-Player.onConnect = function(socket){
-	var player = Player(socket.id); //luodaan uusi pelaaja
+Player.onConnect = function(socket, username){
+	var player = Player(socket.id, username); //luodaan uusi pelaaja
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin inputista */
 	socket.on('keyPress',function(data){
@@ -142,7 +142,7 @@ Player.update = function(){
 		pack.push({ //lisätään sijainti pakettiin
 			x:player.x,
 			y:player.y,
-			number:player.number
+			username:player.username,
 		});
 	}
 	return pack;
@@ -216,7 +216,7 @@ var USERS = {
 	//username:password
 	"root":"root66",
 	"testi":"sala",
-	"demo":"demo",
+	"a":"a",
 }
 
 /* simuloidaan oikean tietokannan viivettä setTimeouteilla -> täytyy käyttää callbackejä */
@@ -249,7 +249,7 @@ io.sockets.on('connection', function(socket){
 	socket.on('signIn',function(data){
 		isValidPassword(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan ovatko ne oikein
 			if(res){
-				Player.onConnect(socket); //kutsutaan Player-luokan funktiota (onConnect), joka luo uuden pelaajan
+				Player.onConnect(socket, data.username); //kutsutaan Player-luokan funktiota (onConnect), joka luo uuden pelaajan
 				socket.emit('signInResponse',{success:true}); //lähetetään viesti clientille onnistuneesta kirjautumisesta
 			} else {
 				socket.emit('signInResponse',{success:false});
@@ -281,9 +281,8 @@ io.sockets.on('connection', function(socket){
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin chattiin */
 	socket.on('sendMsgToServer',function(data){
-		var playerName = ("" + socket.id).slice(2,7);
 		for(var i in SOCKET_LIST){
-			SOCKET_LIST[i].emit('addToChat',playerName + ': ' + data);
+			SOCKET_LIST[i].emit('addToChat',data.playername + ': ' + data.message);
 		}
 	});
 	

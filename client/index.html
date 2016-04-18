@@ -1,20 +1,20 @@
 ﻿<title>Nodejs peli</title>
 <div id="signDiv">
-	Username: <input id="signDiv-username" type="text"></input><br>
-	Password: <input id="signDiv-password" type="password"></input>
+	Username:<br><input id="signDiv-username" type="text"></input><br>
+	Password:<br><input id="signDiv-password" type="password"></input><br><br>
 	<button id="signDiv-signIn">Sign In</button>
 	<button id="signDiv-signUp">Sign Up</button>
 </div>
 
 <div id="gameDiv" style="display:none;">
-	<canvas id="ctx" width="500" height="500" style="border:1px solid #000000;"></canvas>
+	<canvas id="ctx" width="500" height="500" style="border:1px solid #000000;cursor:crosshair;"></canvas>
 
-	<div id="chat-text" style="width:500px;height:100px;overflow-y:scroll">
+	<div id="chat-text" style="width:500px;height:100px;overflow-y:scroll;">
 		<div>Hello!</div>
 	</div>
 
 	<form id="chat-form">
-		<input id="chat-input" type="text" style="width:500px"></input>
+		<input id="chat-input" type="text" style="width:500px;"></input>
 	</form>
 </div>
 
@@ -28,15 +28,25 @@
 	var signDivSignIn = document.getElementById('signDiv-signIn');
 	var signDivSignUp = document.getElementById('signDiv-signUp');
 	var signDivPassword = document.getElementById('signDiv-password');
+	var myName = "";
 	
+	//sisään kirjautuminen napilla tai enterillä
 	signDivSignIn.onclick = function(){ 
 		socket.emit('signIn',{username:signDivUsername.value,password:signDivPassword.value}); //lähetetään viestinä serverille username ja password
 	}
-	signDivSignUp.onclick = function(){ 
-		socket.emit('signUp',{username:signDivUsername.value,password:signDivPassword.value}); //lähetetään viestinä serverille username ja password
+	signDiv.onkeydown = function(e){ 
+		if(e.keyCode == 13) //enter
+			socket.emit('signIn',{username:signDivUsername.value,password:signDivPassword.value});
 	}
+	
+	//rekisteröityminen napilla
+	signDivSignUp.onclick = function(){ 
+		socket.emit('signUp',{username:signDivUsername.value,password:signDivPassword.value});
+	}
+	
 	socket.on('signInResponse',function(data){ //vastaanotetaan viesti (signInResponse) serveriltä
 		if(data.success){ //kirjautuminen onnistui -> näytetään gameDiv
+			myName = signDivUsername.value;
 			signDiv.style.display = 'none';
 			gameDiv.style.display = 'inline-block';
 		} else
@@ -59,15 +69,27 @@
 	socket.on('newPositions',function(data){ //vastaanotetaan viesti (newPositions) serveriltä
 		ctx.clearRect(0,0,500,500); //tyhjennetään canvas
 		for(var i = 0; i < data.player.length; i++)
-			ctx.fillText(data.player[i].number,data.player[i].x,data.player[i].y); //piirretään kaikki pelaajat uusiin sijainteihin		
-		
+		{
+			if(data.player[i].username == myName)
+				ctx.fillStyle="#00cc00"; //jos kyseessä on oma pelaaja, piiretään vihreä neliö
+			else
+				ctx.fillStyle="#ff0000"; //vihollis pelaaja, piirretään punainen neliö
+			ctx.fillRect(data.player[i].x-10,data.player[i].y-10,20,20); //piirretään kaikki pelaajat uusiin sijainteihin
+			ctx.fillStyle="#000000";
+			ctx.font="15px Georgia";
+			ctx.fillText(data.player[i].username,data.player[i].x-15,data.player[i].y-15); //pelaajien nimet
+		}
 		for(var i = 0; i < data.bullet.length; i++)
-			ctx.fillRect(data.bullet[i].x-5,data.bullet[i].y-5,10,10); //sama bulleteille			
+		{
+			ctx.fillStyle="#000000";
+			ctx.fillRect(data.bullet[i].x-2.5,data.bullet[i].y-2.5,5,5); //sama bulleteille	
+		}			
 		/* ei yhtään laskentaa clientissä, serveri hoitaa kaiken! */
 	});
 	
 	socket.on('addToChat',function(data){ //vastaanotetaan viesti (addToChat) serveriltä
 		chatText.innerHTML += '<div>' + data + '</div>'; //näytetään viestin data elementissä (chatText)
+		chatText.scrollTop = chatText.scrollHeight; //scrollataan chatin alaosaan
 	});
 	socket.on('evalAnswer',function(data){ //vastaanotetaan debuggaus-data serveriltä
 		console.log(data);
@@ -78,8 +100,9 @@
 		if(chatInput.value[0] === '/') //serverin debuggaus komennoilla, jotka alkavat kauttamerkillä
 			socket.emit('evalServer',chatInput.value.slice(1));
 		else
-			socket.emit('sendMsgToServer',chatInput.value); //lähetetään viesti serverille, jonka datana lähetetään elementin (chatInput) sisältö
+			socket.emit('sendMsgToServer',{message:chatInput.value,playername:myName}); //lähetetään viesti serverille, jonka datana lähetetään elementin (chatInput) sisältö
 		chatInput.value = '';
+		chatInput.blur(); //poistetaan focus
 	}
 	
 	/* lähetetään viesti serverille aina kun näppäintä painetaan */
