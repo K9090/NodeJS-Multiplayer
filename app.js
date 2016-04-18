@@ -20,6 +20,11 @@ serv.listen(process.env.PORT || 2000); //kuunnellaan porttia 2000 localhostissa 
 console.log("Serveri startattu: kuuntelee porttia 2000.");
 /* Express loppuu */
 
+/* vakiot */
+var CANVAS_HEIGHT = 500;
+var CANVAS_WIDTH = 500;
+var PLAYER_WIDTH = 20;
+var PLAYER_HEIGHT = 20;
 
 /* Luokat alkaa */
 /* Entity luokka */
@@ -64,6 +69,16 @@ var Player = function(id, username){
 	self.update = function(){ //ylikirjoitetaan update-funktio
 		self.updateSpd(); //päivitetään pelaajan nopeus
 		super_update(); //kutsutaan alkuperäistä Entityn update-funktiota, joka päivittää sijainnin nopeuden perusteella
+		
+		/* estetään pelaajan liikkuminen reunojen ulkopuolelle */
+		if(self.x < PLAYER_WIDTH/2)
+			self.x = PLAYER_WIDTH/2;
+		if(self.x > CANVAS_WIDTH-PLAYER_WIDTH/2)
+			self.x = CANVAS_WIDTH-PLAYER_WIDTH/2;
+		if(self.y < PLAYER_HEIGHT/2)
+			self.y = PLAYER_HEIGHT/2;
+		if(self.y > CANVAS_HEIGHT-PLAYER_HEIGHT/2)
+			self.y = CANVAS_HEIGHT-PLAYER_HEIGHT/2;
 		
 		/* ammutaan bulletteja, kun hiiren painike on alaalla */
 		if(self.pressingAttack){
