@@ -64,30 +64,44 @@ var Player = function(id, username){
 	self.pressingAttack = false;
 	self.mouseAngle = 0;
 	self.maxSpd = 10;
+	self.hp = 400;
+	self.isDead = false;
 	
 	var super_update = self.update; //otetaan alkuperäinen Entityn update-funktio talteen muuttujaan (super_update)
 	self.update = function(){ //ylikirjoitetaan update-funktio
-		self.updateSpd(); //päivitetään pelaajan nopeus
-		super_update(); //kutsutaan alkuperäistä Entityn update-funktiota, joka päivittää sijainnin nopeuden perusteella
-		
-		/* estetään pelaajan liikkuminen reunojen ulkopuolelle */
-		if(self.x < PLAYER_WIDTH/2)
-			self.x = PLAYER_WIDTH/2;
-		if(self.x > CANVAS_WIDTH-PLAYER_WIDTH/2)
-			self.x = CANVAS_WIDTH-PLAYER_WIDTH/2;
-		if(self.y < PLAYER_HEIGHT/2)
-			self.y = PLAYER_HEIGHT/2;
-		if(self.y > CANVAS_HEIGHT-PLAYER_HEIGHT/2)
-			self.y = CANVAS_HEIGHT-PLAYER_HEIGHT/2;
-		
-		/* ammutaan bulletteja, kun hiiren painike on alaalla */
-		if(self.pressingAttack){
-			self.shootBullet(self.mouseAngle);
-		}
-		self.shootBullet = function(angle){
-			var b = Bullet(self.id,angle);
-			b.x = self.x; //bullet luodaan pelaajan sijaintiin
-			b.y = self.y;
+		if(!self.isDead){
+			self.updateSpd(); //päivitetään pelaajan nopeus
+			super_update(); //kutsutaan alkuperäistä Entityn update-funktiota, joka päivittää sijainnin nopeuden perusteella
+			
+			/* estetään pelaajan liikkuminen reunojen ulkopuolelle */
+			if(self.x < PLAYER_WIDTH/2)
+				self.x = PLAYER_WIDTH/2;
+			if(self.x > CANVAS_WIDTH-PLAYER_WIDTH/2)
+				self.x = CANVAS_WIDTH-PLAYER_WIDTH/2;
+			if(self.y < PLAYER_HEIGHT/2)
+				self.y = PLAYER_HEIGHT/2;
+			if(self.y > CANVAS_HEIGHT-PLAYER_HEIGHT/2)
+				self.y = CANVAS_HEIGHT-PLAYER_HEIGHT/2;
+			
+			/* ammutaan bulletteja, kun hiiren painike on alaalla */
+			if(self.pressingAttack){
+				self.shootBullet(self.mouseAngle);
+			}
+			self.shootBullet = function(angle){
+				var b = Bullet(self.id,angle);
+				b.x = self.x; //bullet luodaan pelaajan sijaintiin
+				b.y = self.y;
+			}
+			
+			/* kuolema */
+			if(self.hp <= 0){
+				self.isDead = true;
+				self.x = 6666;
+				self.y = 6666;
+				setTimeout(function(){
+					self.respawn(); //pelaaja respawnaa 5 sekuntia kuoleman jälkeen
+				},5000);
+			}
 		}
 	}
 	
@@ -108,6 +122,15 @@ var Player = function(id, username){
 		else 
 			self.spdY = 0;
 	}
+	
+	/* respawnataan pelaaja random sijaintiin */
+	self.respawn = function(){
+		self.x = Math.floor(Math.random() * (CANVAS_WIDTH-PLAYER_WIDTH/2)) + PLAYER_WIDTH/2;
+		self.y = Math.floor(Math.random() * (CANVAS_HEIGHT-PLAYER_HEIGHT/2)) + PLAYER_HEIGHT/2;
+		self.hp = 400;
+		self.isDead = false;
+	}
+	
 	Player.list[id] = self; //lisätään pelaaja listaan luonnin yhteydessä
 	return self;
 }
@@ -158,6 +181,7 @@ Player.update = function(){
 			x:player.x,
 			y:player.y,
 			username:player.username,
+			isdead:player.isDead,
 		});
 	}
 	return pack;
@@ -176,7 +200,7 @@ var Bullet = function(parent,angle){
 	var super_update = self.update; //samat update-kikkailut, mitkä tehtiin Pelaaja-luokassa
 	self.update = function(){
 		if(self.timer++ > 100)
-			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua
+			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua (tai sen osuessa)
 		super_update();
 
 		/* törmäykset */
@@ -185,7 +209,7 @@ var Bullet = function(parent,angle){
 		for (var i in Player.list) {
 			var p = Player.list[i];
 			if(self.getDistance(p) < 32 && self.parent !== p.id){ 
-				//tähän tulee joskus törmäykseen liittyvää toiminnallisuuta, esim. vähennetään terveyspisteitä pelaajalta (hp--;)
+				p.hp = p.hp - 50; // vähennetään pelaajalta hp:ta
 				self.toRemove = true;
 			}
 		}
