@@ -1,6 +1,6 @@
 ﻿/* MongoJS alustus */
 var mongojs = require("mongojs");
-var db = mongojs('heroku_jftr8gc7:koodari13@ds013951.mlab.com:13951/heroku_jftr8gc7', ['account']); //MongoLab
+var db = mongojs('koodari:koodari13@ds013951.mlab.com:13951/heroku_jftr8gc7?authMechanism=SCRAM-SHA-1', ['account']); //MongoLab
 //var db = mongojs('localhost:27017/tietokanta', ['account']); //localhost
 
 /* ExpressJS alkaa */
