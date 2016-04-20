@@ -4,3 +4,4 @@
 * Tekijä: Aleksi Vuorela (H8346 / IIO14S1)
 * [Suunnitelma](https://github.com/vuoale/NodeJS-Multiplayer/wiki/Suunnitelma)
 * [Loppuraportti](https://github.com/vuoale/NodeJS-Multiplayer/wiki/Loppuraportti)
+* [Demo](http://nodejspeli.herokuapp.com/)

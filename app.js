@@ -1,7 +1,9 @@
-﻿/* Express alkaa */
-/* ainut paikka jossa Expressiä käytetään koko projektissa */
-/* peli vaatii vain yhden webbi-sivun, joten enempää Expressiä ei tarvita */
+﻿/* MongoJS alustus */
+var mongojs = require("mongojs");
+var db = mongojs('heroku_jftr8gc7:koodari13@ds013951.mlab.com:13951/heroku_jftr8gc7', ['account']) //MongoLab
+//var db = mongojs('localhost:27017/tietokanta', ['account']); //localhost
 
+/* ExpressJS alkaa */
 /* luodaan serveri ja laitetaan se kuuntelemaan porttia 2000 */
 /* kun porttiin 2000 tulee pyyntö, serverille kerrotaan siitä ja riippuen pyynnöstä tehdään jokin toiminto */
 var express = require('express');
@@ -18,7 +20,7 @@ app.use('/client',express.static(__dirname + '/client')); //pyyntö alkaa /clien
 
 serv.listen(process.env.PORT || 2000); //kuunnellaan porttia 2000 localhostissa tai Herokun porttia (process.env.PORT)
 console.log("Serveri startattu: kuuntelee porttia 2000.");
-/* Express loppuu */
+/* ExpressJS loppuu */
 
 /* vakiot */
 var CANVAS_HEIGHT = 500;
@@ -52,7 +54,7 @@ var Entity = function(){
 }
 
 /* Pelaaja luokka */
-var Player = function(id, username){
+var Player = function(id, username, score){
 	var self = Entity(); //luokka peritään Entitystä
 	/* lisätään Entityn attribuuttien lisäksi pelaajalle omia attribuutteja */
 	self.id = id;
@@ -66,7 +68,7 @@ var Player = function(id, username){
 	self.maxSpd = 10;
 	self.hp = 400;
 	self.isDead = false;
-	self.score = 0;
+	self.score = score;
 	
 	var super_update = self.update; //otetaan alkuperäinen Entityn update-funktio talteen muuttujaan (super_update)
 	self.update = function(){ //ylikirjoitetaan update-funktio
@@ -148,33 +150,41 @@ Player.list = {};
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 Player.onConnect = function(socket, username){
-	var player = Player(socket.id, username); //luodaan uusi pelaaja
-	
-	/* tätä funktiota kutsutaan, kun client lähettää viestin inputista */
-	socket.on('keyPress',function(data){
-		/* näppäimistön näppäintä painetaan */
-		/* viestin data-osassa tulee mukana painetun näppäimen id, sekä tieto siitä, onko näppäin painettu alas vai ylös */
-		if(data.inputId === 'left')
-			player.pressingLeft = data.state;
-		else if(data.inputId === 'right')
-			player.pressingRight = data.state;
-		else if(data.inputId === 'up')
-			player.pressingUp = data.state;
-		else if(data.inputId === 'down')
-			player.pressingDown = data.state;
+	getScore(username,function(res){ //haetaan tietokannasta käyttäjän score 
+		var player = Player(socket.id, username, res); //luodaan uusi pelaaja kannasta haetulla entisellä scorella
 		
-		/* hiiren painiketta painetaan, datana tulee tieto siitä, onko painettu alas vai ylös */
-		else if(data.inputId === 'attack')
-			player.pressingAttack = data.state;
-		/* hiirtä liikutetaan, datana tulee hiiren kulma */
-		else if(data.inputId === 'mouseAngle')
-			player.mouseAngle = data.state;
+		/* tätä funktiota kutsutaan, kun client lähettää viestin inputista */
+		socket.on('keyPress',function(data){
+			/* näppäimistön näppäintä painetaan */
+			/* viestin data-osassa tulee mukana painetun näppäimen id, sekä tieto siitä, onko näppäin painettu alas vai ylös */
+			if(data.inputId === 'left')
+				player.pressingLeft = data.state;
+			else if(data.inputId === 'right')
+				player.pressingRight = data.state;
+			else if(data.inputId === 'up')
+				player.pressingUp = data.state;
+			else if(data.inputId === 'down')
+				player.pressingDown = data.state;
+			
+			/* hiiren painiketta painetaan, datana tulee tieto siitä, onko painettu alas vai ylös */
+			else if(data.inputId === 'attack')
+				player.pressingAttack = data.state;
+			
+			/* hiirtä liikutetaan, datana tulee hiiren kulma */
+			else if(data.inputId === 'mouseAngle')
+				player.mouseAngle = data.state;
+		});
 	});
 }
 
 /* tätä funktiota kutsutaan, kun client katkaisee yhteyden */
 Player.onDisconnect = function(socket){
-	delete Player.list[socket.id]; //poistetaan pelaaja listalta
+	var player = Player.list[socket.id]; //haetaan pelaaja listalta
+	if(player != null){
+		updateScore(player.username,player.score,function(res){ //päivitetään score tietokantaan
+			delete Player.list[socket.id]; //poistetaan pelaaja listalta
+		});
+	}
 }
 
 /* update funktio, joka päivittää kaikki pelaajat */
@@ -182,8 +192,8 @@ Player.update = function(){
 	var pack = []; //paketti, joka pitää sisällään tiedot kaikista pelaajista
 	for(var i in Player.list){
 		var player = Player.list[i];
-		player.update(); //päivitetään pelaajan sijainti
-		pack.push({ //lisätään sijainti pakettiin
+		player.update(); //päivitetään pelaajan sijainti + muut
+		pack.push({ //lisätään sijainti + muut pakettiin
 			x:player.x,
 			y:player.y,
 			username:player.username,
@@ -210,7 +220,6 @@ var Bullet = function(parent,angle){
 			self.toRemove = true; //poistetaan bulletti tietyn ajan kuluttua (tai sen osuessa)
 		super_update();
 
-		/* VAROITUS: SPAGETTIKOODIA ALLA, KULKU OMALLA VASTUULLA!*/
 		/* loopataan läpi kaikki pelaajat ja tarkistetaan, onko etäisyys alle 32 & ettei kyseinen pelaaja omista bullettia */
 		/* jos nämä ehdot toteutuvat -> törmäys */
 		for (var i in Player.list){
@@ -254,8 +263,8 @@ Bullet.update = function(){
 /* Luokat loppuu */
 
 
-/* Socket.io alkaa */
-/* alustetaan Socket.io */
+/* Socket.IO alkaa */
+/* alustetaan Socket.IO */
 var io = require('socket.io')(serv,{});
 
 /* lista kaikista socketeista */
@@ -264,31 +273,51 @@ var SOCKET_LIST = {};
 /* debug-mode, sallii komentojen lähettämisen */
 var DEBUG = true; //vaihdetaan falseksi release-versiossa!
 
-/* objekti kaikista valideista käyttäjä+salasana -pareista */
-var USERS = {
-	//username:password
-	"root":"root66",
-	"testi":"sala",
-	"a":"a",
-}
-
-/* simuloidaan oikean tietokannan viivettä setTimeouteilla -> täytyy käyttää callbackejä */
+/* tietokanta queryt alkaa */
+/* tietokannassa viivettä -> täytyy käyttää callbackejä */
 var isValidPassword = function(data,cb){
-	setTimeout(function(){
-		cb(USERS[data.username] === data.password); //tarkistetaan, löytyykö USERS-objektista datana tullutta käyttäjä+salasana -paria
-	},10);
+	//syntaksi: db.<COLLECTION>.find(<MUST MATCH>);
+	db.account.find({username:data.username,password:data.password},function(err,res){
+		if(res.length > 0) //match löytyi kannasta (responsen pituus > 0)
+			cb(true);
+		else
+			cb(false);
+	});
 }
 var isUsernameTaken = function(data,cb){
-	setTimeout(function(){
-		cb(USERS[data.username]); //palauttaa true, jos käyttäjä löytyy jo
-	},10);
+	//syntaksi: db.<COLLECTION>.find(<MUST MATCH>);
+	db.account.find({username:data.username},function(err,res){
+		if(res.length > 0)
+			cb(true);
+		else
+			cb(false);
+	});
 }
 var addUser = function(data,cb){
-	setTimeout(function(){
-		USERS[data.username] = data.password; //lisätään uusi käyttäjä+salasana -pari
+	db.account.insert({username:data.username,password:data.password,score:0},function(err){ //insertille ei ole responsea
 		cb();
-	},10);
+	});
 }
+var getScore = function(username,cb){
+	//syntaksi: db.<COLLECTION>.find(<MUST MATCH>,<TO RETRIEVE>);
+	db.account.find({username:username},{score:1},function(err,res){
+		cb(res[0].score); //parsitaan responsesta score
+	});
+}
+var updateScore = function(username,score,cb){
+	//syntaksi: db.<COLLECTION>.update(<MUST MATCH>,{$set:<NEW VALUES>});
+	db.account.update({username:username},{$set:{score:score}},function(err){
+		cb();
+	});
+}
+var getHighscores = function(cb){
+	//sorttaa scoret suurimmasta pienimpään (-1, ascending olisi 1) ja ottaa top 5, palauttaa käyttäjän + scoren
+	db.account.find({},{username:1,score:1}).sort({score:-1}).limit(5,function(err,res){
+		cb(res);
+	});
+}
+/* tietokanta queryt loppuu */
+
 
 /* tätä funktiota kutsutaan, kun uusi client ottaa yhteyden serveriin */
 io.sockets.on('connection', function(socket){
@@ -297,7 +326,6 @@ io.sockets.on('connection', function(socket){
 	SOCKET_LIST[socket.id] = socket; //lisätään arvottu id socket-listaan
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin kirjautumisesta */
-	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
 	socket.on('signIn',function(data){
 		isValidPassword(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan ovatko ne oikein
 			if(res){
@@ -310,7 +338,6 @@ io.sockets.on('connection', function(socket){
 	});
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin rekisteröitymisestä */
-	/* VAROITUS: "CALLBACK HELL" ALLA, KULKU OMALLA VASTUULLA! */
 	socket.on('signUp',function(data){
 		isUsernameTaken(data,function(res){ //viestissä tulee datana username ja password, tarkistetaan löytyykö käyttäjä jo
 			if(res){
@@ -327,7 +354,7 @@ io.sockets.on('connection', function(socket){
 	/* clientin ei tarvitse erikseen lähettää (emit) disconnect-viestiä, vaan se tehdään automaattisesti */
 	socket.on('disconnect',function(){
 		delete SOCKET_LIST[socket.id]; //poistetaan disconnectannut clientti listoilta
-		Player.onDisconnect(socket);
+		Player.onDisconnect(socket); //ja päivitetään score tietokantaan
 	});
 	
 	/* tätä funktiota kutsutaan, kun client lähettää viestin chattiin */
@@ -349,6 +376,13 @@ io.sockets.on('connection', function(socket){
 		socket.emit('evalAnswer',res);
 	});
 	
+	/* tätä funktiota kutsutaan, kun client lähettää pyynnön highscoreista */
+	socket.on('highscore',function(){
+		getHighscores(function(res){ //haetaan highscoret kannasta
+			socket.emit('highscoreResponse',res); //lähetetään clientille viestinä taulukko, jossa top 5 pelaajien nimet + scoret
+		});
+	});
+	
 });
 
 /* loopataan läpi kaikki clientit (30fps) */
@@ -363,4 +397,4 @@ setInterval(function(){
 		socket.emit('newPositions',pack); //lähetetään viestinä paketti kaikille clienteille uusista sijainneista
 	}	
 },1000/30);
-/* Socket.io loppuu */
+/* Socket.IO loppuu */

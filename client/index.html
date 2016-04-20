@@ -1,4 +1,4 @@
-﻿<title>Nodejs peli</title>
+﻿<title>NodeJS peli</title>
 <div id="signDiv">
 	Username:<br><input id="signDiv-username" type="text"></input><br>
 	Password:<br><input id="signDiv-password" type="password"></input><br><br>
@@ -16,6 +16,9 @@
 	<form id="chat-form">
 		<input id="chat-input" type="text" style="width:500px;"></input>
 	</form>
+	
+	<button id="highscore">Highscores</button>
+	<div id="highscoreDiv" style="width:500px;height:200px;overflow-y:auto;margin-top:20px;"></div>
 </div>
 
 <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
@@ -64,7 +67,9 @@
 	var chatInput = document.getElementById('chat-input');
 	var chatForm = document.getElementById('chat-form');
 	var ctx = document.getElementById("ctx").getContext("2d");
-	ctx.font = '30px Arial';	
+	var highscore = document.getElementById('highscore');
+	var highscoreDiv = document.getElementById('highscoreDiv');
+	ctx.font = '30px Arial';
 	
 	socket.on('newPositions',function(data){ //vastaanotetaan viesti (newPositions) serveriltä
 		ctx.clearRect(0,0,500,500); //tyhjennetään canvas
@@ -159,4 +164,23 @@
 		var angle = Math.atan2(y,x) / Math.PI * 180;
 		socket.emit('keyPress',{inputId:'mouseAngle',state:angle});
 	}
+	
+	/* highscorejen pyyntö */
+	highscore.onclick = function(){ 
+		socket.emit('highscore');
+	}
+	
+	/* highscorejen vastaanotto */
+	socket.on('highscoreResponse',function(data){
+		var highscores = [];
+		highscoreDiv.innerHTML = "";
+		for(i = 0; i < data.length; i++)
+		{
+			highscores.push(i+1 + ". " + data[i].username + " -- " + data[i].score);
+		}
+		for(i = 0; i < highscores.length; i++)
+		{
+			highscoreDiv.innerHTML += highscores[i] + "<br>";
+		}
+	});
 </script>
